@@ -1,41 +1,67 @@
-// Esta variante provavelmente demorou-me o mesmo tempo que as outras variantes e exercicios combinados.
-
-// A ideia neste é manter um estado global da quantidade de writers e readers à espera num dado instante e fazer
-// decisões relativas a quem tem CPU time momento a momento com base em variaveis condicionais.
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
 #include <unistd.h>
 
-pthread_mutex_t lock          = PTHREAD_MUTEX_INITIALIZER;
-pthread_cond_t  can_read      = PTHREAD_COND_INITIALIZER;
-pthread_cond_t  can_write     = PTHREAD_COND_INITIALIZER;
+pthread_mutex_t lock      = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t  can_read  = PTHREAD_COND_INITIALIZER;
+pthread_cond_t  can_write = PTHREAD_COND_INITIALIZER;
 
 int readers_active  = 0;
-int writers_active  = 0; 
+int writers_active  = 0;
+int readers_waiting = 0;
 int writers_waiting = 0;
 
-int shared_data = 0;  
+// já não usava um enum há muito tempo, mas é melhor que um numero mágico aí a flutuar
+enum Last{
+    WRITER,
+    READER
+};
+enum Last last = 0;
 
-#define NUM_READERS 5
-#define NUM_WRITERS 3
+int shared_data = 0;
+
+#define NUM_READERS 6
+#define NUM_WRITERS 6
+
+// scheduling/dispatching helper porque as thread funcs estavam a ficar cheias de codigo repetido
+static void dispatch(void) {
+    int wake_writer = 0;
+    int wake_reader = 0;
+
+    if (writers_waiting > 0 && readers_waiting > 0) {
+
+        if (last)
+            wake_reader = WRITER;
+        else
+            wake_writer = 1;
+    } else if (writers_waiting > 0) {
+        wake_writer = 1;
+    } else if (readers_waiting > 0) {
+        wake_reader = 1;
+    }
+
+    if (wake_writer) {
+        pthread_cond_signal(&can_write);
+    } else if (wake_reader) {
+        pthread_cond_broadcast(&can_read);
+    }
+}
 
 void *writer(void *arg) {
     int id = *(int *)arg;
 
-    usleep(rand() % 300000); 
+    usleep(rand() % 300000);
 
     printf("[Writer %d] Wants to write...\n", id);
 
     pthread_mutex_lock(&lock);
         writers_waiting++;
-
-		while (readers_active > 0 || writers_active > 0)
+        while (readers_active > 0 || writers_active > 0)
             pthread_cond_wait(&can_write, &lock);
         writers_waiting--;
         writers_active++;
-
+        last = WRITER;  // record for next assignment
     pthread_mutex_unlock(&lock);
 
     shared_data++;
@@ -44,10 +70,7 @@ void *writer(void *arg) {
 
     pthread_mutex_lock(&lock);
         writers_active--;
-        if (writers_waiting > 0)
-            pthread_cond_signal(&can_write);
-        else
-            pthread_cond_broadcast(&can_read);
+        dispatch();
     pthread_mutex_unlock(&lock);
 
     printf("[Writer %d] Done writing.\n", id);
@@ -62,19 +85,24 @@ void *reader(void *arg) {
     printf("[Reader %d] Wants to read...\n", id);
 
     pthread_mutex_lock(&lock);
-        while (writers_active > 0 || writers_waiting > 0)
+        readers_waiting++;
+        while (writers_active > 0 ||
+              (writers_waiting > 0 && last == READER))
             pthread_cond_wait(&can_read, &lock);
+        readers_waiting--;
         readers_active++;
+        last = READER; // record for next assignment
     pthread_mutex_unlock(&lock);
 
     printf("[Reader %d] Reading... shared_data = %d  (active readers: %d)\n",
            id, shared_data, readers_active);
-    usleep(150000); // simulate read time
+
+    usleep(150000);
 
     pthread_mutex_lock(&lock);
         readers_active--;
         if (readers_active == 0)
-            pthread_cond_signal(&can_write);
+            dispatch(); 
     pthread_mutex_unlock(&lock);
 
     printf("[Reader %d] Done reading.\n", id);
@@ -89,7 +117,7 @@ int main() {
 
     srand(42);
 
-    printf("=== Writers-Priority Reader-Writer (mutex + condvar) ===\n\n");
+    printf("=== No-Starvation Reader-Writer (last_was_writer alternation) ===\n\n");
 
     for (int i = 0; i < NUM_READERS; i++) {
         reader_ids[i] = i + 1;
