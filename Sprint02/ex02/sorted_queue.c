@@ -213,7 +213,7 @@ static const struct proc_ops proc_ops = {
 };
 int proc_init(void)
 {
-   	proc_entry = proc_create(ENTRY_NAME,0, NULL, &proc_ops);
+   	proc_entry = proc_create(ENTRY_NAME,0666, NULL, &proc_ops);
 	if(proc_entry == NULL)
    		return -ENOMEM;
   

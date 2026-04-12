@@ -78,13 +78,13 @@ static void timer_callback(struct timer_list *t)
 	mod_timer(&my_timer, jiffies + HZ);
 }
 
-int proc_open(struct inode *inode, struct file *filp)
+static int proc_open(struct inode *inode, struct file *filp)
 {
 	printk(KERN_INFO "LKM: %s:[%d] open\n", ENTRY_NAME, current->pid);
 	return 0;
 }
 
-ssize_t proc_read(struct file *filp, char __user *buf, size_t count, loff_t *f_pos)
+static ssize_t proc_read(struct file *filp, char __user *buf, size_t count, loff_t *f_pos)
 {
 	int len;
 
@@ -105,7 +105,7 @@ ssize_t proc_read(struct file *filp, char __user *buf, size_t count, loff_t *f_p
 	return len;
 }
 
-ssize_t proc_write(struct file *filp, const char __user *buf, size_t count, loff_t *f_pos)
+static ssize_t proc_write(struct file *filp, const char __user *buf, size_t count, loff_t *f_pos)
 {
 	char buffer[BUFFER_LEN];
 
@@ -124,7 +124,7 @@ ssize_t proc_write(struct file *filp, const char __user *buf, size_t count, loff
 	return count;
 }
 
-int proc_close(struct inode *inode, struct file *filp)
+static int proc_close(struct inode *inode, struct file *filp)
 {
 	printk(KERN_INFO "LKM: %s:[%d] close\n", ENTRY_NAME, current->pid);
 	return 0; 
@@ -138,7 +138,7 @@ static const struct proc_ops proc_ops = {
 };
 
 
-int proc_init(void)
+static int proc_init(void)
 {
 	proc_entry = proc_create(ENTRY_NAME, 0666, NULL, &proc_ops);
 	if (proc_entry == NULL)
@@ -156,7 +156,7 @@ int proc_init(void)
 	return 0;
 }
 
-void proc_exit(void)
+static void proc_exit(void)
 {
 	del_timer_sync(&my_timer);
 	remove_proc_entry(ENTRY_NAME, NULL);

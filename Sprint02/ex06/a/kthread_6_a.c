@@ -32,20 +32,22 @@ unsigned long timer_interval_ns = NSEC_PER_SEC; //1 seconds
 /*
 ** Thread Function
 */
-void task_function(struct work_struct *work) {
+static void task_function(struct work_struct *work) {
     task_t *task = container_of(work, task_t, work);
 
     if(task->flag == 0){
+        printk(KERN_INFO "INCREMENT| ");
         atomic_inc(&number);
     }else{
         atomic_dec(&number);
+        printk(KERN_INFO "DECREMENT| ");
     }
     
     printk(KERN_INFO "Changed number to %d", number.counter);
     kfree(task); // was getting a memory leak
 }
 
-enum hrtimer_restart timer_callback( struct hrtimer *t)
+static enum hrtimer_restart timer_callback( struct hrtimer *t)
 {
   	ktime_t currtime, interval;
   	currtime  = ktime_get();
